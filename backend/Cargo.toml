@@ -20,6 +20,7 @@ deadpool = "0.12.1"
 
 [dev-dependencies]
 tokio-test = "0.4.4"
+tower = { version = "0.5", features = ["util"] }
 
 [profile.release]
 lto = true

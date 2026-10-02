@@ -1,3 +1,4 @@
+#[path = "config.rs"]
 mod config;
 mod models;
 mod routes;

@@ -1,3 +1,4 @@
+#[path = "config.rs"]
 mod config;
 mod models;
 mod routes;
@@ -30,8 +31,13 @@ async fn main() -> anyhow::Result<()> {
 
     let pool = db::create_pool().await?;
 
+    let rate_limit_state = middleware::RateLimitState::new(config::RateLimitConfig::from_env());
     let app = Router::new()
         .nest("/api", routes::merchant_routes().merge(routes::payment_routes()).merge(routes::health_routes_with_db(pool.clone())))
+        .layer(axum::middleware::from_fn_with_state(
+            rate_limit_state,
+            middleware::rate_limit_middleware,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -45,7 +51,11 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(%addr, "EzPay backend listening");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

@@ -6,6 +6,9 @@ use axum::{
 };
 use serde_json::json;
 
+pub mod rate_limit;
+pub use rate_limit::{rate_limit_middleware, RateLimitIdentity, RateLimitState};
+
 // Error handling
 #[derive(Debug)]
 pub enum AppError {
@@ -49,8 +52,3 @@ pub async fn auth_middleware() -> Result<(), AppError> {
     todo!("Implement JWT authentication middleware")
 }
 
-// Rate limiting middleware stub
-// TODO: Implement rate limiting using tower-governor
-pub async fn rate_limit_middleware() -> Result<(), AppError> {
-    todo!("Implement rate limiting middleware")
-}

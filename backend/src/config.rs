@@ -7,6 +7,54 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub server: ServerConfig,
     pub stellar: StellarConfig,
+    pub rate_limits: RateLimitConfig,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct RateLimitRule {
+    pub requests_per_minute: u32,
+    pub burst: u32,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct RateLimitConfig {
+    pub public: RateLimitRule,
+    pub authenticated: RateLimitRule,
+    pub payment: RateLimitRule,
+    pub merchant: RateLimitRule,
+    pub auth: RateLimitRule,
+    pub health: RateLimitRule,
+}
+
+impl RateLimitConfig {
+    pub fn from_env() -> Self {
+        Self {
+            public: rule_from_env("PUBLIC", 100),
+            authenticated: rule_from_env("AUTHENTICATED", 1000),
+            payment: rule_from_env("PAYMENT", 10),
+            merchant: rule_from_env("MERCHANT", 100),
+            auth: rule_from_env("AUTH", 100),
+            health: rule_from_env("HEALTH", 1_000_000),
+        }
+    }
+}
+
+fn rule_from_env(name: &str, default_requests_per_minute: u32) -> RateLimitRule {
+    let requests_per_minute = env::var(format!("RATE_LIMIT_{name}_PER_MINUTE"))
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default_requests_per_minute);
+    let burst = env::var(format!("RATE_LIMIT_{name}_BURST"))
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(requests_per_minute);
+
+    RateLimitRule {
+        requests_per_minute,
+        burst,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,6 +100,7 @@ impl Config {
                 network_passphrase: env::var("STELLAR_NETWORK_PASSPHRASE")
                     .unwrap_or_else(|_| "Test SDF Network ; September 2015".to_string()),
             },
+            rate_limits: RateLimitConfig::from_env(),
         })
     }
 }

@@ -75,7 +75,7 @@ impl RateLimitState {
         let retry_after = if allowed {
             0
         } else {
-            (1.0 / refill_per_second).ceil() as u64
+            (((1.0 - bucket.tokens).max(0.0) / refill_per_second).ceil() as u64).max(1)
         };
 
         Decision {
@@ -165,8 +165,9 @@ fn unix_timestamp_after(duration: Duration) -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .saturating_add(duration)
-        .as_secs()
+    .as_secs()
+    .saturating_add(duration.as_secs())
+    .saturating_add(u64::from(duration.subsec_nanos() > 0))
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+#[path = "config.rs"]
 mod config;
 mod models;
 mod routes;
@@ -27,22 +28,13 @@ async fn main() -> anyhow::Result<()> {
     let config = config::Config::from_env()?;
     let pool = db::create_pool(&config.database).await?;
 
-    if let Some(event_config) = events::listener::EventListenerConfig::from_env()? {
-        let event_pool = pool.clone();
-        tokio::spawn(async move {
-            loop {
-                if let Err(error) = events::listener::run(event_pool.clone(), event_config.clone()).await {
-                    tracing::error!(%error, "Stellar event listener stopped; restarting");
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                }
-            }
-        });
-    } else {
-        tracing::info!("Stellar event listener disabled: STELLAR_CONTRACT_ID is not set");
-    }
-
+    let rate_limit_state = middleware::RateLimitState::new(config::RateLimitConfig::from_env());
     let app = Router::new()
         .nest("/api", routes::merchant_routes().merge(routes::payment_routes()).merge(routes::health_routes_with_db(pool.clone())))
+        .layer(axum::middleware::from_fn_with_state(
+            rate_limit_state,
+            middleware::rate_limit_middleware,
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -56,7 +48,11 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(host = %config.server.host, port = config.server.port, "EzPay backend listening");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

@@ -7,4 +7,4 @@ pub mod health;
 
 pub use merchants::merchant_routes;
 pub use payments::payment_routes;
-pub use health::health_routes;
+pub use health::{health_routes, health_routes_with_db};

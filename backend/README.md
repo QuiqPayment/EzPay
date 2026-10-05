@@ -138,6 +138,19 @@ docker run -p 3001:3001 --env-file .env ezpay-backend
 | `RUST_LOG` | Log level | info |
 | `DATABASE_MAX_CONNECTIONS` | Max DB connections | 10 |
 
+Rate limits use an in-memory token bucket and are shared only within one server process. This is suitable for a single instance; multi-instance deployments need shared storage such as Redis. Each group supports a per-minute refill rate and bucket burst capacity:
+
+| Group | Requests per minute | Environment variables |
+|-------|---------------------|-----------------------|
+| Public | 100 | `RATE_LIMIT_PUBLIC_PER_MINUTE`, `RATE_LIMIT_PUBLIC_BURST` |
+| Authenticated | 1000 | `RATE_LIMIT_AUTHENTICATED_PER_MINUTE`, `RATE_LIMIT_AUTHENTICATED_BURST` |
+| Payment | 10 | `RATE_LIMIT_PAYMENT_PER_MINUTE`, `RATE_LIMIT_PAYMENT_BURST` |
+| Merchant | 100 | `RATE_LIMIT_MERCHANT_PER_MINUTE`, `RATE_LIMIT_MERCHANT_BURST` |
+| Auth | 100 | `RATE_LIMIT_AUTH_PER_MINUTE`, `RATE_LIMIT_AUTH_BURST` |
+| Health | 1000000 | `RATE_LIMIT_HEALTH_PER_MINUTE`, `RATE_LIMIT_HEALTH_BURST` |
+
+The rate limiter keys authenticated callers by `RateLimitIdentity`, which must be inserted into request extensions by trusted authentication middleware after validating the caller's credentials. Requests without that identity are keyed by the remote IP address.
+
 ## Architecture
 
 For detailed architecture information, see [ARCHITECTURE.md](../ARCHITECTURE.md).

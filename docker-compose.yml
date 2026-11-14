@@ -1,63 +1,52 @@
+# Authorized Protocol Quality Assurance & Formal Invariant Verification
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:14-alpine
-    container_name: ezpay-postgres
+  ezpay-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ezpay-dev
+    ports:
+      - "3000:3000"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: ezpay
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgres://ezpay_user:ezpay_pass@ezpay-db:5432/ezpay_dev
+      - REDIS_URL=redis://ezpay-redis:6379
+    depends_on:
+      ezpay-db:
+        condition: service_healthy
+      ezpay-redis:
+        condition: service_started
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  ezpay-db:
+    image: postgres:15-alpine
+    container_name: ezpay-postgres
     ports:
       - "5432:5432"
+    environment:
+      POSTGRES_USER: ezpay_user
+      POSTGRES_PASSWORD: ezpay_pass
+      POSTGRES_DB: ezpay_dev
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ezpay_user -d ezpay_dev"]
+      interval: 5s
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: ezpay-backend
-    environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/ezpay
-      PORT: 3001
-      STELLAR_NETWORK: testnet
-      STELLAR_RPC_URL: ${STELLAR_RPC_URL:-https://soroban-testnet.stellar.org}
-      STELLAR_CONTRACT_ID: ${STELLAR_CONTRACT_ID:-}
-      STELLAR_EVENT_START_LEDGER: ${STELLAR_EVENT_START_LEDGER:-}
-      STELLAR_EVENT_POLL_INTERVAL_SECS: ${STELLAR_EVENT_POLL_INTERVAL_SECS:-3}
-      RUST_LOG: info
+  ezpay-redis:
+    image: redis:7-alpine
+    container_name: ezpay-redis
     ports:
-      - "3001:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - cargo_cache:/usr/local/cargo/registry
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ezpay-frontend
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      NEXT_PUBLIC_STELLAR_NETWORK: testnet
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - node_modules:/app/node_modules
+      - "6379:6379"
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
-  cargo_cache:
-  node_modules:
+  pgdata:
